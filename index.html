@@ -363,36 +363,44 @@ function drawOscChart(){
   const w=oscC.width=oscC.parentElement.clientWidth||260, h=50;
   oscX.clearRect(0,0,w,h);
   oscX.fillStyle='rgba(6,13,30,0.8)'; oscX.fillRect(0,0,w,h);
+  
   const L=Math.PI*2*t*0.008;
   const pe=Math.cos(L)**2;
   const pm=Math.sin(L)**2*Math.cos(L*0.7)**2;
   const pt=Math.max(0,1-pe-pm);
-  // Draw as stacked area
+  
   const cols=['#39ff88','#00d4ff','#ff6b35'];
   const vals=[pe,pm,pt];
   oscHistory.push(vals);
   if(oscHistory.length>w) oscHistory.shift();
+  
+  // Arka plan alanlarını düzgünce doldurma (Stack mantığı düzeltildi)
   for(let ci=2;ci>=0;ci--){
     oscX.beginPath();
-    let stack=0;
-    for(let i=ci+1;i<3;i++) stack+=0;
-    oscX.moveTo(0,h);
-    let base=0;
-    for(let i=ci;i<3;i++) base+=0;
-    oscHistory.forEach((v,xi)=>{
-      let yBase=h, yTop=h;
-      for(let i=3-1;i>ci;i--) yBase-=v[i]*h*0.85;
-      yTop=yBase-v[ci]*h*0.85;
-      xi===0 ? oscX.moveTo(xi,yTop) : oscX.lineTo(xi,yTop);
+    oscX.moveTo(0, h);
+    oscHistory.forEach((v, xi) => {
+      let yBase = h;
+      // Kendinden önceki katmanların yüksekliğini biriktirir
+      for(let i=2; i>ci; i--) {
+        yBase -= v[i] * h * 0.85;
+      }
+      let yTop = yBase - v[ci] * h * 0.85;
+      xi === 0 ? oscX.moveTo(xi, yTop) : oscX.lineTo(xi, yTop);
     });
-    oscX.lineTo(oscHistory.length-1,h); oscX.lineTo(0,h); oscX.closePath();
-    oscX.fillStyle=cols[ci]+'55'; oscX.fill();
+    oscX.lineTo(oscHistory.length-1, h); 
+    oscX.lineTo(0, h); 
+    oscX.closePath();
+    oscX.fillStyle = cols[ci] + '33'; // %20 opaklık
+    oscX.fill();
   }
-  // Lines
+  
+  // Çizgileri çekme
   [pe,pm,pt].forEach((v,ci)=>{
     oscX.beginPath();
     oscHistory.forEach((hv,xi)=>{
-      const y=h-(hv[ci]*h*0.85);
+      let yBase = h;
+      for(let i=2; i>ci; i--) yBase -= hv[i] * h * 0.85;
+      const y = yBase - hv[ci] * h * 0.85;
       xi===0 ? oscX.moveTo(xi,y) : oscX.lineTo(xi,y);
     });
     oscX.strokeStyle=cols[ci]; oscX.lineWidth=1.5; oscX.stroke();
