@@ -867,77 +867,70 @@ function ph4(dt){ // Çerenkov & etkileşim
   updateStats(.35);
 }
 
-function ph5(dt){ // IceCube/KM3NeT full response
+function ph5(dt) {
   ctx.clearRect(0,0,W,H);
   const dw=320,dh=440,dcx=W/2,dcy=H/2+10;
-  detectorPMTs=[];
+  
+  // Dedektör yapısını güvenli bir şekilde çizdir
   drawDetector(dcx,dcy,dw,dh,'IceCube Nötrino Gözlemevi');
 
-  // Multiple incoming ν from different angles
-  if(t%45<2){
-    const ang=-Math.PI/2+(Math.random()-.5)*1.4;
-    const sx=50+Math.random()*(W-100), sy=-20;
-    const spd=1.6+Math.random()*.5;
-    particles.push(mkNu(sx,sy,Math.cos(ang)*spd,Math.sin(ang)*spd));
+  // Yukarıdan aşağıya akacak nötrinoları üret
+  if (t % 45 < 2 && particles.length < 40) {
+    const ang = Math.PI / 2 + (Math.random() - 0.5) * 0.5; // Aşağı yönlü açı ayarı
+    const sx = dcx - dw/2 + Math.random() * dw;
+    const sy = dcy - dh/2 + 10;
+    particles.push(mkNu(sx, sy, Math.cos(ang) * 1.5, Math.sin(ang) * 1.5));
   }
 
-  particles.forEach(p=>{
+  // Parçacıkları işle ve çarpışma mantığını kilitlenmeden yönet
+  particles.forEach(p => {
     stepParticle(p);
-    const inD=p.x>dcx-dw/2&&p.x<dcx+dw/2&&p.y>dcy-dh/2&&p.y<dcy+dh/2;
+    const inD = p.x > dcx - dw/2 && p.x < dcx + dw/2 && p.y > dcy - dh/2 && p.y < dcy + dh/2;
 
-    if(inD&&!p.interacted&&p.type==='neutrino'&&Math.random()<.007){
-      p.interacted=true; nuCount++; detCount++;
-      const en=(50+Math.random()*5000).toFixed(0);
-      const flv=FLAV_NM[p.flavor||0];
-      addLog(`ALGILANDI: ${flv} @ ${en} GeV — Iz yeniden oluşturuluyor`,'det');
+    if (inD && !p.interacted && p.type === 'neutrino' && Math.random() < 0.03) {
+      p.interacted = true; 
+      nuCount++; 
+      detCount++;
+      const en = (50 + Math.random() * 5000).toFixed(0);
+      const flv = FLAV_NM[p.flavor || 0];
+      addLog(`ALGILANDI: ${flv} @ ${en} GeV`, 'det');
 
-      // Muon
-      for(let i=0;i<3;i++){
-        const ma=Math.atan2(p.vy,p.vx)+(Math.random()-.5)*.2;
-        particles.push({x:p.x,y:p.y,vx:Math.cos(ma)*1.8,vy:Math.sin(ma)*1.8,
-          type:'muon',life:1,decay:.004,size:2.5,trail:[],flavor:1,osc:0,interacted:false,detected:false});
-      }
-      // Cherenkov
-      const ba=Math.atan2(p.vy,p.vx);
-      for(let i=0;i<36;i++){
-        const ca=ba+(Math.random()-.5)*.8;
-        particles.push({x:p.x,y:p.y,vx:Math.cos(ca)*2,vy:Math.sin(ca)*2,
-          type:'cherenkov',life:1,decay:.014,size:1,trail:[],flavor:0,osc:0,interacted:false,detected:false});
-      }
-      // Hadronic cascade
-      for(let i=0;i<10;i++){
-        const ha=Math.random()*Math.PI*2;
-        particles.push({x:p.x,y:p.y,vx:Math.cos(ha),vy:Math.sin(ha),
-          type:'hadron',life:1,decay:.025,size:2,trail:[],flavor:0,osc:0,interacted:false,detected:false});
+      // Çerenkov Işıma Konisi efektini güvenli tetikle
+      const ba = Math.atan2(p.vy, p.vx);
+      for (let i = 0; i < 20; i++) {
+        const ca = ba + (Math.random() - 0.5) * 0.6;
+        particles.push({
+          x: p.x, y: p.y, vx: Math.cos(ca) * 1.8, vy: Math.sin(ca) * 1.8,
+          type: 'cherenkov', life: 0.6, decay: 0.02, size: 1, trail: []
+        });
       }
 
-      // Hit PMTs
-      detectorPMTs.forEach(pmt=>{
-        const dd=Math.sqrt((p.x-pmt.x)**2+(p.y-pmt.y)**2);
-        if(dd<100&&Math.random()<.65) pmtGlow[pmt.idx]=(pmtGlow[pmt.idx]||0)+1.2;
+      // PMT ışımalarını güncelle
+      detectorPMTs.forEach(pmt => {
+        const dd = Math.hypot(p.x - pmt.x, p.y - pmt.y);
+        if (dd < 70) pmtGlow[pmt.idx] = (pmtGlow[pmt.idx] || 0) + 1.0;
       });
-      pmtHits+=Math.floor(8+Math.random()*25);
-      p.vx=0;p.vy=0;p.life=0;
+      pmtHits += Math.floor(5 + Math.random() * 15);
+      p.vx = 0; p.vy = 0; p.life = 0;
     }
 
     drawParticle(p);
   });
 
-  particles=particles.filter(p=>p.life>0&&p.x>-40&&p.x<W+40&&p.y>-40&&p.y<H+40);
+  // Ömrü biten veya ekrandan çıkan parçacıkları temizle
+  particles = particles.filter(p => p.life > 0 && p.x > 0 && p.x < W && p.y > 0 && p.y < H);
 
-  // Info overlays
-  ctx.font='10px Space Mono,monospace'; ctx.textAlign='left';
-  ctx.fillStyle='rgba(0,212,255,.7)'; ctx.fillText(`PMT Vuruşu: ${pmtHits}`,12,28);
-  ctx.fillStyle='rgba(57,255,136,.7)'; ctx.fillText(`Tespit: ${detCount}`,12,46);
-  ctx.fillStyle='rgba(255,107,53,.7)'; ctx.fillText(`Σ ν yayıldı: ${nuCount}`,12,64);
+  // Sol üstteki veri panellerini yazdır
+  ctx.font = '10px Space Mono,monospace'; ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(0,212,255,.7)'; ctx.fillText(`PMT Vuruşu: ${pmtHits}`, 20, 40);
+  ctx.fillStyle = 'rgba(57,255,136,.7)'; ctx.fillText(`Tespit: ${detCount}`, 20, 60);
+  ctx.fillStyle = 'rgba(255,107,53,.7)'; ctx.fillText(`Σ ν yayıldı: ${nuCount}`, 20, 80);
 
-  // Timing diagram hint
-  ctx.font='9px DM Sans,sans-serif'; ctx.fillStyle='rgba(200,220,240,.35)';
-  ctx.textAlign='center'; ctx.fillText('PMT zaman farkları → nötrino yönü & enerjisi (üçgenleme)',W/2,H-16);
+  ctx.font = '9px DM Sans,sans-serif'; ctx.fillStyle = 'rgba(200,220,240,.35)';
+  ctx.textAlign = 'center'; ctx.fillText('PMT zaman farkları → nötrino yönü & enerjisi (üçgenleme)', W / 2, H - 16);
 
-  updateStats(.35);
+  updateStats(0.35);
 }
-
 // ═══════════════════════════════════════════════════════
 // STATS
 // ═══════════════════════════════════════════════════════
